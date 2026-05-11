@@ -23,6 +23,9 @@ polished here into a production-quality Python package.
 - **Safe by default** — every tool path is validated against the workspace root and
   cannot escape via `..`; `run_bash` rejects dangerous patterns (`rm -rf`,
   `sudo`, `git push`, …) and only runs commands whose prefix is on an allow-list.
+- **MCP server** — `shrek mcp` exposes the same six tools to any
+  [Model Context Protocol](https://modelcontextprotocol.io) client (Claude
+  Desktop, Cursor, Zed, …) over stdio — no Anthropic key required.
 - **Configurable** — read `ANTHROPIC_API_KEY`, model, max tokens, workspace, and
   the bash allow-list from environment variables or a local `.env`.
 - **Fully tested + typed** — `pytest`, `ruff`, `mypy --strict` in CI across
@@ -112,6 +115,48 @@ shrek --workspace ./my-project --model claude-opus-4-5
 | `write_file`   | Create or fully overwrite a file. Parent directories are created automatically.              |
 | `run_bash`     | Run an allow-listed shell command (`ls`, `cat`, `pytest`, `ruff`, `git status`, …).          |
 
+### MCP server mode — use ShrekAgent's tools from any MCP client
+
+ShrekAgent also ships an [MCP](https://modelcontextprotocol.io) server so
+other agents (Claude Desktop, Cursor, Zed, custom IDEs, …) can call the same
+six tools against a workspace you control. The server speaks JSON-RPC over
+stdio — the transport every desktop MCP host already supports.
+
+```bash
+shrek mcp --workspace /path/to/your/project
+# or, identical:
+shrek-mcp --workspace /path/to/your/project
+```
+
+No `ANTHROPIC_API_KEY` is needed; the host LLM does its own model calls and
+ShrekAgent only provides the tools.
+
+#### Claude Desktop config
+
+Add a `shrek` entry to your `claude_desktop_config.json` (macOS:
+`~/Library/Application Support/Claude/claude_desktop_config.json`, Linux:
+`~/.config/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "shrek": {
+      "command": "shrek-mcp",
+      "args": ["--workspace", "/Users/me/projects/my-app"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop and you'll see `read_file`, `list_files`,
+`search_files`, `edit_file`, `write_file`, and `run_bash` available in any
+chat — scoped to the workspace you configured. The same allow-list and
+path-escape protections still apply.
+
+For Cursor / Zed / custom clients, point them at `shrek-mcp` (or
+`python -m shrek_agent.mcp_server`) and pass `--workspace` to scope the
+sandbox.
+
 ### Extending the agent
 
 Adding a new tool is three steps:
@@ -169,6 +214,13 @@ pip install -e .
 export ANTHROPIC_API_KEY="sk-ant-..."
 shrek
 ```
+
+ShrekAgent shuningdek **MCP server** sifatida ishlay oladi —
+`shrek mcp --workspace /path/to/project` buyrug'i orqali xuddi shu olti
+tool'ni Claude Desktop, Cursor, Zed kabi har qanday MCP-klient bilan
+ulashish mumkin. Bu rejimda Anthropic kalit kerak emas; host LLM
+o'zining modelini ishlatadi, ShrekAgent esa faqat sandboxed workspace
+ustida tool'larni taqdim etadi.
 
 ## Acknowledgements
 

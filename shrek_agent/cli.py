@@ -78,6 +78,42 @@ def tools_cmd() -> None:
         console.print(f"[bold green]{tool.name}[/bold green]  [dim]— {first_line}[/dim]")
 
 
+@app.command("mcp")
+def mcp_cmd(
+    workspace: Annotated[
+        Path | None,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="Directory the MCP server is allowed to read/edit. Defaults to current dir.",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+        ),
+    ] = None,
+) -> None:
+    """Run ShrekAgent as an MCP server over stdio.
+
+    Other MCP clients (Claude Desktop, Cursor, Zed, …) can connect to this
+    server to call the same six tools the agent uses internally. No
+    ``ANTHROPIC_API_KEY`` is needed — the host LLM does its own model calls.
+    """
+    from shrek_agent.mcp_server import serve_stdio
+
+    config = Config.from_env(workspace=workspace)
+    # Visible only on stderr because the server owns stdout.
+    sys.stderr.write(
+        f"shrek-agent MCP server | workspace: {config.workspace}\n"
+        "speaking JSON-RPC over stdio; press Ctrl-C to stop.\n"
+    )
+    sys.stderr.flush()
+    try:
+        serve_stdio(config=config)
+    except KeyboardInterrupt:
+        sys.stderr.write("shrek-agent MCP server: bye\n")
+        sys.stderr.flush()
+
+
 def _run_repl(config: Config) -> None:
     from anthropic import Anthropic  # imported lazily for fast --help / `tools` subcommand
 
@@ -188,6 +224,31 @@ def _handle_slash(command: str, agent: Agent) -> bool:
 
     console.print(f"[red]unknown command:[/red] {cmd}  (try /help)")
     return False
+
+
+mcp_app = typer.Typer(
+    help="ShrekAgent MCP server (stdio). Exposes the six built-in tools to any MCP client.",
+    no_args_is_help=False,
+    add_completion=False,
+)
+
+
+@mcp_app.callback(invoke_without_command=True)
+def mcp_main(
+    workspace: Annotated[
+        Path | None,
+        typer.Option(
+            "--workspace",
+            "-w",
+            help="Directory the MCP server is allowed to read/edit. Defaults to current dir.",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+        ),
+    ] = None,
+) -> None:
+    """Entry point for the ``shrek-mcp`` console script."""
+    mcp_cmd(workspace=workspace)
 
 
 if __name__ == "__main__":  # pragma: no cover
