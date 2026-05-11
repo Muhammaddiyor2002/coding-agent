@@ -32,6 +32,7 @@ dependencies = [
     "prompt-toolkit>=3.0.43",
     "typer>=0.12",
     "python-dotenv>=1.0",
+    "mcp>=1.2",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +47,7 @@ dev = [
 [project.scripts]
 shrek = "shrek_agent.cli:app"
 shrek-agent = "shrek_agent.cli:app"
+shrek-mcp = "shrek_agent.cli:mcp_app"
 
 [project.urls]
 Homepage = "https://github.com/Muhammaddiyor2002/coding-agent"
