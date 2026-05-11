@@ -98,7 +98,10 @@ class RunBashTool(Tool):
 
 
 def _reject_dangerous(command: str) -> None:
-    lower = " " + command.lower() + " "
+    # Collapse runs of whitespace so that e.g. `rm  -rf` (double space) still
+    # matches the `rm -rf` snippet. This matters when bash_allow_all is set,
+    # because the allow-list gate is skipped and this check is the last guard.
+    lower = " " + " ".join(command.lower().split()) + " "
     for needle in DANGEROUS_SNIPPETS:
         if needle in lower:
             raise ToolError(f"refusing to run dangerous command (matched: {needle!r})")

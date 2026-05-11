@@ -82,7 +82,18 @@ class Agent:
 
             self.conversation.append({"role": "user", "content": tool_results})
 
+        # Hit the iteration cap mid-tool-loop: the last appended message is a
+        # user (tool_results). Append a synthetic assistant text so the next
+        # send() starts from a valid alternating state and Claude is told what
+        # happened (instead of getting a 400 on the next call).
+        limit_note = "[stopped: reached the agent's tool-call iteration limit]"
         render_info("⚠ stopping: reached tool-call iteration limit")
+        self.conversation.append(
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": limit_note}],
+            }
+        )
 
     # ---- internals ---------------------------------------------------------
 

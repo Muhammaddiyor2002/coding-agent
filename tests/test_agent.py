@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+import shrek_agent.agent as agent_module
 from shrek_agent.agent import Agent
 from shrek_agent.config import Config
 
@@ -106,3 +108,44 @@ def test_reset(config: Config) -> None:
     assert agent.conversation
     agent.reset()
     assert not agent.conversation
+
+
+def test_iteration_limit_keeps_conversation_valid(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After hitting the iteration cap, a follow-up send() must succeed.
+
+    Regression test: the previous implementation appended a user(tool_results)
+    message at the end of every iteration. When the loop exited at the cap,
+    the conversation ended on a user message, and the next send() pushed
+    another user message on top, violating the Anthropic API's strict
+    alternation requirement.
+    """
+    (config.workspace / "x.txt").write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(agent_module, "MAX_TOOL_ITERATIONS", 2)
+
+    def looping_response() -> FakeMessage:
+        # Claude keeps asking to read the same file forever.
+        return FakeMessage(
+            content=[FakeToolUseBlock(id="t", name="read_file", input={"path": "x.txt"})]
+        )
+
+    follow_up = FakeMessage(content=[FakeTextBlock(text="ok")])
+    client = FakeClient([looping_response(), looping_response(), follow_up])
+    agent = Agent(config=config, client=client)  # type: ignore[arg-type]
+
+    agent.send("go")
+
+    # Conversation must end with an assistant message so a follow-up send is valid.
+    assert agent.conversation[-1]["role"] == "assistant"
+    last_text = agent.conversation[-1]["content"][0]["text"]
+    assert "iteration limit" in last_text
+
+    # Verify alternation: roles must strictly alternate user/assistant.
+    roles = [m["role"] for m in agent.conversation]
+    for prev, nxt in pairwise(roles):
+        assert prev != nxt, f"two consecutive {prev!r} messages: {roles}"
+
+    # A subsequent send() must not crash.
+    agent.send("another turn")
+    assert agent.conversation[-1]["role"] == "assistant"

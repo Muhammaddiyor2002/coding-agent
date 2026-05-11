@@ -45,3 +45,25 @@ def test_empty_command(ctx) -> None:
     tool = RunBashTool()
     with pytest.raises(ToolError, match="empty"):
         tool.run(RunBashInput(command="   "), ctx)
+
+
+def test_dangerous_whitespace_bypass_blocked(ctx, sample_tree: Path) -> None:
+    """Extra whitespace inside a dangerous snippet must not slip past the filter.
+
+    The check normalizes consecutive spaces so that `rm  -rf /` (double space)
+    is rejected with the same `rm -rf` snippet match. Without normalization
+    this is the last guard when bash_allow_all is enabled.
+    """
+    tool = RunBashTool()
+    with pytest.raises(ToolError, match="dangerous"):
+        tool.run(RunBashInput(command="rm  -rf /tmp/whatever"), ctx)
+    with pytest.raises(ToolError, match="dangerous"):
+        tool.run(RunBashInput(command="sudo\t  apt install evil"), ctx)
+
+
+def test_dangerous_check_still_runs_when_allow_all(ctx, sample_tree: Path) -> None:
+    """Even with SHREK_BASH_ALLOWLIST=* the dangerous-snippet filter still fires."""
+    ctx.config.bash_allow_all = True
+    tool = RunBashTool()
+    with pytest.raises(ToolError, match="dangerous"):
+        tool.run(RunBashInput(command="rm  -rf /"), ctx)
